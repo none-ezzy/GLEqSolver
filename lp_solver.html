@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LP Solver — Two-Phase Simplex</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  /* ===========================
+     CSS VARIABLES & RESET
+  =========================== */
+  :root {
+    --bg: #0d0f14;
+    --surface: #14171f;
+    --surface2: #1c2030;
+    --border: #2a2f42;
+    --border-light: #3a4058;
+    --accent: #5b8af0;
+    --accent2: #3dffc0;
+    --accent3: #ff6b6b;
+    --text: #e8ecf4;
+    --text-muted: #7a849e;
+    --text-dim: #4a5268;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+    --radius: 6px;
+    --glow: 0 0 20px rgba(91,138,240,0.15);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+    padding: 0 0 60px;
+  }
+
+  /* ===========================
+     HEADER
+  =========================== */
+  header {
+    background: linear-gradient(135deg, #0d0f14 0%, #141828 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 28px 32px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    top: -40px; right: -60px;
+    width: 260px; height: 260px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(91,138,240,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  header h1 {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.5px;
+  }
+  header h1 span { color: var(--accent); }
+  header p {
+    color: var(--text-muted);
+    font-size: 13px;
+    margin-top: 4px;
+    font-family: var(--mono);
+  }
+
+  /* ===========================
+     LAYOUT
+  =========================== */
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 28px 20px 0;
+  }
+
+  /* ===========================
+     CARDS / PANELS
+  =========================== */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px 24px;
+    margin-bottom: 18px;
+  }
+  .card-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--accent);
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ===========================
+     DIMENSION ROW
+  =========================== */
+  .dim-row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+  .dim-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .dim-group label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+  }
+  .dim-group input[type=number] {
+    width: 72px;
+    padding: 8px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 16px;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .dim-group input[type=number]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(91,138,240,0.15);
+  }
+
+  .btn {
+    padding: 8px 18px;
+    border-radius: var(--radius);
+    border: none;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    transition: all 0.2s;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { background: #7aa3f5; transform: translateY(-1px); box-shadow: var(--glow); }
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-example {
+    background: transparent;
+    color: var(--accent2);
+    border: 1px solid rgba(61,255,192,0.3);
+    font-size: 12px;
+    padding: 6px 14px;
+  }
+  .btn-example:hover { background: rgba(61,255,192,0.08); }
+
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 14px;
+  }
+
+  /* ===========================
+     COEFFICIENT TABLES
+  =========================== */
+  .table-wrap { overflow-x: auto; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: max-content;
+  }
+  th {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    padding: 6px 8px 10px;
+    text-align: center;
+    white-space: nowrap;
+  }
+  td {
+    padding: 4px 6px;
+    text-align: center;
+  }
+  td.row-label {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-muted);
+    padding-right: 12px;
+    white-space: nowrap;
+    text-align: left;
+  }
+  input.coeff {
+    width: 64px;
+    padding: 7px 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  input.coeff:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(91,138,240,0.12);
+  }
+  select.ctype {
+    padding: 7px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--accent2);
+    font-family: var(--mono);
+    font-size: 14px;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  select.ctype:focus { border-color: var(--accent); }
+
+  td.plus-sign {
+    font-family: var(--mono);
+    color: var(--text-dim);
+    font-size: 13px;
+    padding: 0 2px;
+  }
+
+  /* ===========================
+     SOLVE BUTTON
+  =========================== */
+  .solve-btn {
+    width: 100%;
+    padding: 14px;
+    font-size: 15px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), #7b5bf5);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-weight: 600;
+    letter-spacing: 1px;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .solve-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px rgba(91,138,240,0.4);
+  }
+  .solve-btn:active { transform: translateY(0); }
+
+  /* ===========================
+     RESULTS BOX
+  =========================== */
+  #results {
+    display: none;
+    animation: fadeUp 0.35s ease;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 18px;
+  }
+  .status-optimal { background: rgba(61,255,192,0.12); color: var(--accent2); border: 1px solid rgba(61,255,192,0.25); }
+  .status-infeasible { background: rgba(255,107,107,0.12); color: var(--accent3); border: 1px solid rgba(255,107,107,0.25); }
+  .status-unbounded { background: rgba(255,200,80,0.12); color: #ffc850; border: 1px solid rgba(255,200,80,0.25); }
+
+  .obj-value {
+    font-family: var(--mono);
+    font-size: 36px;
+    font-weight: 600;
+    color: var(--accent2);
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .obj-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 22px;
+  }
+
+  .var-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .var-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    text-align: center;
+  }
+  .var-name {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    letter-spacing: 1px;
+  }
+  .var-val {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .info-msg {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+  .info-msg.error { color: var(--accent3); }
+
+  /* ===========================
+     ITERATION LOG (collapsible)
+  =========================== */
+  .log-toggle {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0;
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: color 0.2s;
+  }
+  .log-toggle:hover { color: var(--text-muted); }
+  .log-box {
+    display: none;
+    margin-top: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.9;
+    max-height: 260px;
+    overflow-y: auto;
+  }
+  .log-box.open { display: block; }
+  .log-box .pivot { color: var(--accent); }
+  .log-box .phase { color: var(--accent2); font-weight: 600; }
+
+  /* ===========================
+     RESPONSIVE
+  =========================== */
+  @media (max-width: 600px) {
+    header { padding: 20px 16px; }
+    .container { padding: 18px 12px 0; }
+    .card { padding: 16px 14px; }
+    .dim-row { gap: 12px; }
+    input.coeff { width: 54px; font-size: 13px; }
+    .obj-value { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>LP <span>Simplex</span> Solver</h1>
+  <p>Two-Phase Method · Maximization · General Constraints</p>
+</header>
+
+<div class="container">
+
+  <!-- ── STEP 1: DIMENSIONS ─────────────────────── -->
+  <div class="card">
+    <div class="card-title">01 — Problem Dimensions</div>
+    <div class="dim-row">
+      <div class="dim-group">
+        <label>Variables (n)</label>
+        <input type="number" id="nVars" value="2" min="1" max="10">
+      </div>
+      <div class="dim-group">
+        <label>Constraints (m)</label>
+        <input type="number" id="mCons" value="3" min="1" max="15">
+      </div>
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn btn-secondary" onclick="buildForm()">Build Form</button>
+        <button class="btn btn-example" onclick="loadPinocchio()">Load Example (Pinocchio)</button>
+        <button class="btn btn-example" onclick="loadExample2()">Load Example 2</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── STEP 2: OBJECTIVE + CONSTRAINTS ─────────── -->
+  <div class="card" id="formCard" style="display:none">
+    <div class="card-title">02 — Objective Function &amp; Constraints</div>
+
+    <div style="margin-bottom:22px">
+      <div style="font-family:var(--mono);font-size:12px;color:var(--text-muted);margin-bottom:10px;">
+        Maximize: c₁x₁ + c₂x₂ + … + cₙxₙ
+      </div>
+      <div class="table-wrap">
+        <table id="objTable"></table>
+      </div>
+    </div>
+
+    <div>
+      <div style="font-family:var(--mono);font-size:12px;color:var(--text-muted);margin-bottom:10px;">
+        Subject to: aᵢ₁x₁ + … + aᵢₙxₙ [≤/≥/=] bᵢ &nbsp;|&nbsp; all xⱼ ≥ 0
+      </div>
+      <div class="table-wrap">
+        <table id="conTable"></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SOLVE BUTTON ────────────────────────────── -->
+  <div id="solveRow" style="display:none;margin-bottom:18px">
+    <button class="solve-btn" onclick="solve()">⟶ SOLVE</button>
+  </div>
+
+  <!-- ── RESULTS ─────────────────────────────────── -->
+  <div class="card" id="results">
+    <div class="card-title">03 — Results</div>
+    <div id="resultContent"></div>
+    <button class="log-toggle" onclick="toggleLog()">▸ Show iteration log</button>
+    <div class="log-box" id="logBox"></div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+/* ============================================================
+   LP SOLVER — Two-Phase Simplex Method
+   ============================================================
+   OVERVIEW:
+   - Phase 1: Minimise sum of artificial variables to find
+     a basic feasible solution (BFS). If min > 0 → infeasible.
+   - Phase 2: Maximise the original objective from the BFS.
+   The simplex pivot rule: choose entering variable by most
+   negative reduced cost; leaving variable by min-ratio test.
+   ============================================================ */
+
+// ─── GLOBAL LOG for iteration trace ─────────────────────────
+let iterLog = [];
+
+// ─── NUMERIC TOLERANCE ──────────────────────────────────────
+const EPS = 1e-9;
+
+/* ============================================================
+   buildForm() — reads n,m and renders input tables
+   ============================================================ */
+function buildForm() {
+  const n = parseInt(document.getElementById('nVars').value);
+  const m = parseInt(document.getElementById('mCons').value);
+  if (isNaN(n) || isNaN(m) || n < 1 || m < 1) {
+    alert('Please enter valid n ≥ 1, m ≥ 1'); return;
+  }
+
+  // ── Objective row ──
+  const objTbl = document.getElementById('objTable');
+  let oHdr = '<tr><th></th>';
+  for (let j = 1; j <= n; j++) oHdr += `<th>c${j}</th><th></th>`;
+  oHdr += '</tr>';
+  let oRow = '<tr><td class="row-label">Maximize</td>';
+  for (let j = 1; j <= n; j++) {
+    oRow += `<td><input class="coeff" id="c${j}" value="0" type="number" step="any"></td>`;
+    oRow += `<td class="plus-sign">${j < n ? '+' : ''}</td>`;
+  }
+  oRow += '</tr>';
+  objTbl.innerHTML = oHdr + oRow;
+
+  // ── Constraint rows ──
+  const conTbl = document.getElementById('conTable');
+  let hdr = '<tr><th>Row</th>';
+  for (let j = 1; j <= n; j++) hdr += `<th>a·x${j}</th><th></th>`;
+  hdr += '<th>Type</th><th>RHS</th></tr>';
+
+  let rows = '';
+  for (let i = 1; i <= m; i++) {
+    rows += `<tr><td class="row-label">C${i}</td>`;
+    for (let j = 1; j <= n; j++) {
+      rows += `<td><input class="coeff" id="a${i}_${j}" value="0" type="number" step="any"></td>`;
+      rows += `<td class="plus-sign">${j < n ? '+' : ''}</td>`;
+    }
+    rows += `<td><select class="ctype" id="type${i}">
+               <option value="le">≤</option>
+               <option value="ge">≥</option>
+               <option value="eq">=</option>
+             </select></td>`;
+    rows += `<td><input class="coeff" id="b${i}" value="0" type="number" step="any"></td>`;
+    rows += '</tr>';
+  }
+  conTbl.innerHTML = hdr + rows;
+
+  document.getElementById('formCard').style.display = 'block';
+  document.getElementById('solveRow').style.display = 'block';
+  document.getElementById('results').style.display = 'none';
+}
+
+/* ============================================================
+   readProblem() — collect inputs into a problem object
+   Returns { n, m, c[], A[][], b[], types[] }
+   ============================================================ */
+function readProblem() {
+  const n = parseInt(document.getElementById('nVars').value);
+  const m = parseInt(document.getElementById('mCons').value);
+  const c = [], A = [], b = [], types = [];
+  for (let j = 1; j <= n; j++) c.push(parseFloat(document.getElementById(`c${j}`).value) || 0);
+  for (let i = 1; i <= m; i++) {
+    A.push([]);
+    for (let j = 1; j <= n; j++)
+      A[i-1].push(parseFloat(document.getElementById(`a${i}_${j}`).value) || 0);
+    b.push(parseFloat(document.getElementById(`b${i}`).value) || 0);
+    types.push(document.getElementById(`type${i}`).value); // 'le','ge','eq'
+  }
+  return { n, m, c, A, b, types };
+}
+
+/* ============================================================
+   twoPhaseSimplexMax(problem)
+   ─────────────────────────────────────────────────────────
+   Returns { status, objVal, solution[], log[] }
+   status: 'optimal' | 'infeasible' | 'unbounded'
+
+   Variable index layout in tableau columns (0-based):
+     0 … n-1          : original decision variables x1..xn
+     n … n+ns-1       : slack / surplus variables
+     n+ns … n+ns+na-1 : artificial variables
+   ============================================================ */
+function twoPhaseSimplexMax({ n, m, c, A, b, types }) {
+  const log = [];
+  log.push(`<span class="phase">Problem: ${n} variables, ${m} constraints</span>`);
+
+  /* ── Step 1: Standardise — add slacks, surplus, artificials ── */
+  // For each constraint:
+  //   ≤  → add slack    (+s)
+  //   ≥  → subtract surplus (+s with -1) + artificial (+a)
+  //   =  → artificial (+a)
+
+  let ns = 0; // number of slacks/surplus
+  let na = 0; // number of artificials
+
+  // Decide sign and need for artificial per constraint
+  const slackSign = [];  // +1 for ≤, -1 for ≥, 0 for =
+  const needArt   = []; // true for ≥ and =
+
+  for (let i = 0; i < m; i++) {
+    // Ensure b[i] ≥ 0 by flipping the constraint if needed
+    if (b[i] < 0) {
+      b[i] = -b[i];
+      for (let j = 0; j < n; j++) A[i][j] = -A[i][j];
+      // flip type
+      if (types[i] === 'le') types[i] = 'ge';
+      else if (types[i] === 'ge') types[i] = 'le';
+    }
+    if (types[i] === 'le') { slackSign.push(1);  needArt.push(false); ns++; }
+    if (types[i] === 'ge') { slackSign.push(-1); needArt.push(true);  ns++; na++; }
+    if (types[i] === 'eq') { slackSign.push(0);  needArt.push(true);  na++; }
+  }
+
+  const totalVars = n + ns + na;
+  // Column indices
+  const slackStart = n;
+  const artStart   = n + ns;
+
+  /* ── Build full tableau rows (one per constraint) ── */
+  // Tableau: rows = constraints, cols = [all vars | RHS]
+  // basis[i] = column index of basic variable in row i
+
+  let tableau = [];
+  let basis   = [];
+  let slackIdx = 0; // running index into slack columns
+  let artIdx   = 0; // running index into artificial columns
+
+  for (let i = 0; i < m; i++) {
+    const row = new Array(totalVars + 1).fill(0);
+    // Original variables
+    for (let j = 0; j < n; j++) row[j] = A[i][j];
+    // RHS
+    row[totalVars] = b[i];
+
+    if (types[i] === 'le') {
+      row[slackStart + slackIdx] = 1;  // add slack
+      basis.push(slackStart + slackIdx);
+      slackIdx++;
+    } else if (types[i] === 'ge') {
+      row[slackStart + slackIdx] = -1; // subtract surplus
+      row[artStart   + artIdx]   = 1;  // add artificial
+      basis.push(artStart + artIdx);
+      slackIdx++; artIdx++;
+    } else { // eq
+      row[artStart + artIdx] = 1;
+      basis.push(artStart + artIdx);
+      artIdx++;
+    }
+    tableau.push(row);
+  }
+
+  /* ── Helper: pivot on element (pivRow, pivCol) ── */
+  function pivot(tab, bas, pivRow, pivCol) {
+    const pivEl = tab[pivRow][pivCol];
+    // Normalise pivot row
+    for (let k = 0; k <= totalVars; k++) tab[pivRow][k] /= pivEl;
+    // Eliminate column in all other rows
+    for (let i2 = 0; i2 < tab.length; i2++) {
+      if (i2 === pivRow) continue;
+      const factor = tab[i2][pivCol];
+      if (Math.abs(factor) < EPS) continue;
+      for (let k = 0; k <= totalVars; k++) tab[i2][k] -= factor * tab[pivRow][k];
+    }
+    bas[pivRow] = pivCol;
+  }
+
+  /* ── Helper: run one full simplex phase ──
+     objCoeffs: array length totalVars (cost row coefficients, MINIMISATION sense here)
+     Returns 'optimal','unbounded', or 'cycling_guard'
+  ── */
+  function simplexPhase(tab, bas, objCoeffs, phaseLabel, maxIter = 500) {
+    // Build objective row (reduced costs = objCoeffs minus basic contributions)
+    // We store the current reduced costs in 'rc' vector
+    let rc = objCoeffs.slice(); // length totalVars
+    let objVal = 0;
+
+    // Compute initial reduced costs by subtracting basic variable contributions
+    for (let i = 0; i < m; i++) {
+      const bv = bas[i];
+      const cb = objCoeffs[bv];
+      for (let k = 0; k <= totalVars; k++) {
+        if (k < totalVars) rc[k] -= cb * tab[i][k];
+        else objVal += cb * tab[i][k]; // rhs contribution
+      }
+    }
+
+    for (let iter = 0; iter < maxIter; iter++) {
+      // ── Find entering variable (most negative reduced cost) ──
+      let enterCol = -1, minRC = -EPS;
+      for (let k = 0; k < totalVars; k++) {
+        if (rc[k] < minRC) { minRC = rc[k]; enterCol = k; }
+      }
+      if (enterCol === -1) {
+        // Optimal for this phase
+        let rhs = 0;
+        for (let i2 = 0; i2 < m; i2++) rhs += objCoeffs[bas[i2]] * tab[i2][totalVars];
+        log.push(`<span class="phase">${phaseLabel} optimal after ${iter} pivots.</span>`);
+        return { status: 'optimal', objVal: rhs };
+      }
+
+      // ── Min-ratio test (Bland's tie-breaking: pick lowest index row) ──
+      let leaveRow = -1, minRatio = Infinity;
+      for (let i = 0; i < m; i++) {
+        const el = tab[i][enterCol];
+        if (el > EPS) {
+          const ratio = tab[i][totalVars] / el;
+          if (ratio < minRatio - EPS || (Math.abs(ratio - minRatio) < EPS && (leaveRow === -1 || bas[i] < bas[leaveRow]))) {
+            minRatio = ratio; leaveRow = i;
+          }
+        }
+      }
+      if (leaveRow === -1) return { status: 'unbounded' };
+
+      log.push(`${phaseLabel} iter ${iter+1}: enter col ${enterCol+1}, leave row ${leaveRow+1} (x${bas[leaveRow]+1} out)`);
+
+      // Perform pivot
+      pivot(tab, bas, leaveRow, enterCol);
+
+      // Update reduced costs
+      rc = objCoeffs.slice();
+      for (let i = 0; i < m; i++) {
+        const bv = bas[i];
+        const cb = objCoeffs[bv];
+        for (let k = 0; k < totalVars; k++) rc[k] -= cb * tab[i][k];
+      }
+    }
+    return { status: 'cycling_guard' };
+  }
+
+  /* ====================================================
+     PHASE 1 — Minimise sum of artificial variables
+     Objective (minimise): sum_{a} a_k  ≡  maximise -sum_{a} a_k
+     In minimisation terms: cost of artificial = +1, rest = 0
+  ==================================================== */
+  if (na > 0) {
+    log.push(`<span class="phase">── Phase 1 ── Minimising ${na} artificial variable(s)</span>`);
+    const phase1Obj = new Array(totalVars).fill(0);
+    for (let k = artStart; k < totalVars; k++) phase1Obj[k] = 1; // minimise artificials
+
+    const res1 = simplexPhase(tableau, basis, phase1Obj, 'P1');
+    if (res1.status === 'unbounded') {
+      return { status: 'infeasible', log }; // shouldn't happen but guard
+    }
+    if (res1.status === 'cycling_guard') {
+      return { status: 'infeasible', log }; // degenerate fallback
+    }
+
+    // Check Phase 1 objective value (should be 0 if feasible)
+    let artSum = 0;
+    for (let i = 0; i < m; i++) artSum += (basis[i] >= artStart) ? tableau[i][totalVars] : 0;
+
+    log.push(`Phase 1 objective value = ${artSum.toFixed(8)}`);
+
+    if (artSum > 1e-6) {
+      log.push(`<span class="phase">INFEASIBLE — artificial variables remain in basis with positive value.</span>`);
+      return { status: 'infeasible', log };
+    }
+
+    // Drive artificials out of basis if still there (at zero level)
+    for (let i = 0; i < m; i++) {
+      if (basis[i] >= artStart) {
+        // Try to pivot an original/slack variable in
+        let found = false;
+        for (let k = 0; k < artStart; k++) {
+          if (Math.abs(tableau[i][k]) > EPS) {
+            pivot(tableau, basis, i, k);
+            log.push(`Degenerate pivot: drove artificial out of row ${i+1}`);
+            found = true; break;
+          }
+        }
+        // If not found, row is redundant — leave it (it won't affect Phase 2)
+      }
+    }
+  } else {
+    log.push(`<span class="phase">No artificials needed — direct Phase 2.</span>`);
+  }
+
+  /* ====================================================
+     PHASE 2 — Maximise original objective
+     We MAXIMISE c·x, which in standard minimise form is: minimise -c·x
+     So phase2Obj[j] = -c[j] for original vars, 0 for slacks/artificials
+  ==================================================== */
+  log.push(`<span class="phase">── Phase 2 ── Maximising objective</span>`);
+
+  const phase2Obj = new Array(totalVars).fill(0);
+  for (let j = 0; j < n; j++) phase2Obj[j] = -c[j]; // negated for minimisation internally
+
+  const res2 = simplexPhase(tableau, basis, phase2Obj, 'P2');
+
+  if (res2.status === 'unbounded') {
+    return { status: 'unbounded', log };
+  }
+  if (res2.status === 'cycling_guard') {
+    return { status: 'error', log };
+  }
+
+  /* ── Extract solution ── */
+  const solution = new Array(n).fill(0);
+  for (let i = 0; i < m; i++) {
+    if (basis[i] < n) { // basic original variable
+      solution[basis[i]] = Math.max(0, tableau[i][totalVars]);
+    }
+  }
+
+  // Compute objective value: c · x
+  let objVal = 0;
+  for (let j = 0; j < n; j++) objVal += c[j] * solution[j];
+
+  log.push(`<span class="phase">Optimal! z* = ${objVal.toFixed(6)}</span>`);
+  return { status: 'optimal', objVal, solution, log };
+}
+
+/* ============================================================
+   solve() — called by the Solve button
+   ============================================================ */
+function solve() {
+  const prob = readProblem();
+  const result = twoPhaseSimplexMax(prob);
+
+  // ── Render results ──
+  const rc = document.getElementById('resultContent');
+  const logBox = document.getElementById('logBox');
+  logBox.innerHTML = result.log.join('<br>');
+  logBox.classList.remove('open');
+  document.querySelector('.log-toggle').textContent = '▸ Show iteration log';
+
+  let html = '';
+  if (result.status === 'optimal') {
+    html += `<div class="result-status status-optimal">● OPTIMAL SOLUTION FOUND</div>`;
+    html += `<div class="obj-value">${fmt(result.objVal)}</div>`;
+    html += `<div class="obj-label">Optimal Objective Value (Z*)</div>`;
+    html += `<div class="var-grid">`;
+    for (let j = 0; j < prob.n; j++) {
+      html += `<div class="var-card">
+        <div class="var-name">x${j+1}</div>
+        <div class="var-val">${fmt(result.solution[j])}</div>
+      </div>`;
+    }
+    html += `</div>`;
+  } else if (result.status === 'infeasible') {
+    html += `<div class="result-status status-infeasible">✕ INFEASIBLE</div>`;
+    html += `<div class="info-msg error">The problem has no feasible solution.<br>The constraints are contradictory — no point satisfies all of them simultaneously.</div>`;
+  } else if (result.status === 'unbounded') {
+    html += `<div class="result-status status-unbounded">∞ UNBOUNDED</div>`;
+    html += `<div class="info-msg">The objective function can grow without limit.<br>Check your constraint directions — a ≤ constraint may be missing.</div>`;
+  } else {
+    html += `<div class="result-status status-infeasible">? ERROR</div>`;
+    html += `<div class="info-msg error">Solver did not converge. Check your input values.</div>`;
+  }
+
+  rc.innerHTML = html;
+  const res = document.getElementById('results');
+  res.style.display = 'block';
+  res.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ── Format number: remove near-zero, trim decimals ── */
+function fmt(v) {
+  if (Math.abs(v) < 1e-8) return '0';
+  // Round to 6 sig figs
+  const rounded = parseFloat(v.toPrecision(8));
+  // Remove trailing zeros
+  return parseFloat(rounded.toFixed(6)).toString();
+}
+
+function toggleLog() {
+  const lb = document.getElementById('logBox');
+  const btn = document.querySelector('.log-toggle');
+  lb.classList.toggle('open');
+  btn.textContent = lb.classList.contains('open') ? '▾ Hide iteration log' : '▸ Show iteration log';
+}
+
+/* ============================================================
+   EXAMPLE: Pinocchio Factory Problem
+   A classic textbook LP:
+     Maximise  Z = 5x₁ + 4x₂
+     Subject to:
+       6x₁ + 4x₂ ≤ 24   (machine hours)
+       x₁ + 2x₂ ≤  6    (assembly hours)
+       x₁, x₂ ≥ 0
+   Optimal: x₁=3, x₂=1.5, Z=22.5  (may vary by version)
+   ============================================================ */
+function loadPinocchio() {
+  document.getElementById('nVars').value = 2;
+  document.getElementById('mCons').value = 2;
+  buildForm();
+  // Objective
+  setVal('c1', 5); setVal('c2', 4);
+  // Constraint 1: 6x1 + 4x2 ≤ 24
+  setVal('a1_1', 6); setVal('a1_2', 4); setVal('b1', 24); setType('type1', 'le');
+  // Constraint 2: x1 + 2x2 ≤ 6
+  setVal('a2_1', 1); setVal('a2_2', 2); setVal('b2', 6);  setType('type2', 'le');
+}
+
+/* ============================================================
+   EXAMPLE 2: Mixed constraints (≤, ≥, =)
+     Maximise  Z = 3x₁ + 2x₂ + 5x₃
+     Subject to:
+       x₁ + 2x₂ + x₃ ≤ 430
+       3x₁ + 2x₃      ≥ 460   (≥ to demo Phase 1)
+       x₁ + 4x₂       = 420   (= to demo artificial)
+       x₁, x₂, x₃ ≥ 0
+   ============================================================ */
+function loadExample2() {
+  document.getElementById('nVars').value = 3;
+  document.getElementById('mCons').value = 3;
+  buildForm();
+  setVal('c1', 3); setVal('c2', 2); setVal('c3', 5);
+  setVal('a1_1',1); setVal('a1_2',2); setVal('a1_3',1); setVal('b1',430); setType('type1','le');
+  setVal('a2_1',3); setVal('a2_2',0); setVal('a2_3',2); setVal('b2',460); setType('type2','ge');
+  setVal('a3_1',1); setVal('a3_2',4); setVal('a3_3',0); setVal('b3',420); setType('type3','eq');
+}
+
+function setVal(id, v) { const el = document.getElementById(id); if (el) el.value = v; }
+function setType(id, v) { const el = document.getElementById(id); if (el) el.value = v; }
+
+// Auto-build on load so the form is immediately visible
+window.onload = () => { loadPinocchio(); };
+</script>
+</body>
+</html>
