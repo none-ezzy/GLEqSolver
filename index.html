@@ -3,914 +3,323 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LP Solver — Two-Phase Simplex</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<title>Advertising Group Project – Spring 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
 <style>
-  /* ===========================
-     CSS VARIABLES & RESET
-  =========================== */
-  :root {
-    --bg: #0d0f14;
-    --surface: #14171f;
-    --surface2: #1c2030;
-    --border: #2a2f42;
-    --border-light: #3a4058;
-    --accent: #5b8af0;
-    --accent2: #3dffc0;
-    --accent3: #ff6b6b;
-    --text: #e8ecf4;
-    --text-muted: #7a849e;
-    --text-dim: #4a5268;
-    --mono: 'IBM Plex Mono', monospace;
-    --sans: 'IBM Plex Sans', sans-serif;
-    --radius: 6px;
-    --glow: 0 0 20px rgba(91,138,240,0.15);
-  }
+:root {
+  --navy:#0f1729; --navy2:#1a2540;
+  --coral:#e84b3a; --gold:#f5a623; --teal:#1aadad;
+  --white:#ffffff; --muted:#7a8fad; --border:rgba(255,255,255,0.07);
+  --sidebar-w:250px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{background:var(--navy);color:var(--white);font-family:'DM Sans',sans-serif;font-weight:300;overflow-x:hidden;}
 
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+.sidebar{position:fixed;top:0;left:0;width:var(--sidebar-w);height:100vh;background:var(--navy2);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:100;overflow-y:auto;}
+.sidebar-logo{padding:1.6rem 1.4rem 1.2rem;border-bottom:1px solid var(--border);}
+.sidebar-logo .eyebrow{font-size:9px;letter-spacing:4px;text-transform:uppercase;color:var(--coral);font-weight:500;margin-bottom:6px;}
+.sidebar-logo h1{font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;line-height:1.25;color:var(--white);}
+.nav-section-label{font-size:8px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);padding:1rem 1.4rem 0.3rem;font-weight:500;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:0.5rem 1.4rem;cursor:pointer;text-decoration:none;color:var(--muted);font-size:12.5px;font-weight:400;border-left:2px solid transparent;transition:all 0.18s;}
+.nav-item:hover{color:var(--white);background:rgba(255,255,255,0.03);}
+.nav-item.active{color:var(--white);border-left-color:var(--coral);background:rgba(232,75,58,0.07);}
+.nav-item .nav-badge{font-family:'Bebas Neue',sans-serif;font-size:13px;color:var(--coral);min-width:18px;opacity:.6;}
+.nav-item.active .nav-badge{opacity:1;}
+.nav-dot{width:4px;height:4px;border-radius:50%;background:var(--muted);flex-shrink:0;}
+.nav-item.active .nav-dot,.nav-item:hover .nav-dot{background:var(--coral);}
+.sidebar-members{margin-top:auto;padding:1.2rem 1.4rem;border-top:1px solid var(--border);}
+.sidebar-members .mlabel{font-size:8px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;font-weight:500;}
+.member-pill{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11.5px;color:rgba(255,255,255,.55);}
+.member-pill .avatar{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;flex-shrink:0;}
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    font-size: 15px;
-    line-height: 1.6;
-    min-height: 100vh;
-    padding: 0 0 60px;
-  }
+main{margin-left:var(--sidebar-w);}
 
-  /* ===========================
-     HEADER
-  =========================== */
-  header {
-    background: linear-gradient(135deg, #0d0f14 0%, #141828 100%);
-    border-bottom: 1px solid var(--border);
-    padding: 28px 32px 24px;
-    position: relative;
-    overflow: hidden;
-  }
-  header::before {
-    content: '';
-    position: absolute;
-    top: -40px; right: -60px;
-    width: 260px; height: 260px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(91,138,240,0.12) 0%, transparent 70%);
-    pointer-events: none;
-  }
-  header h1 {
-    font-family: var(--mono);
-    font-size: 22px;
-    font-weight: 600;
-    color: var(--text);
-    letter-spacing: 0.5px;
-  }
-  header h1 span { color: var(--accent); }
-  header p {
-    color: var(--text-muted);
-    font-size: 13px;
-    margin-top: 4px;
-    font-family: var(--mono);
-  }
+/* SECTIONS — fixed height so each fits one screen */
+section{height:100vh;display:flex;flex-direction:column;justify-content:center;padding:40px 60px;position:relative;border-bottom:1px solid var(--border);overflow:hidden;}
+.sec-ghost{font-family:'Bebas Neue',sans-serif;font-size:140px;color:rgba(255,255,255,.02);position:absolute;right:40px;top:20px;line-height:1;user-select:none;pointer-events:none;}
+.sec-tag{font-size:8px;letter-spacing:4px;text-transform:uppercase;color:var(--coral);font-weight:500;margin-bottom:.6rem;display:flex;align-items:center;gap:8px;}
+.sec-tag::after{content:'';display:block;width:28px;height:1px;background:var(--coral);opacity:.4;}
+h2{font-family:'Bebas Neue',sans-serif;font-size:52px;letter-spacing:2px;line-height:.95;margin-bottom:.7rem;}
+.lead{font-size:13px;line-height:1.7;color:rgba(255,255,255,.5);max-width:600px;margin-bottom:1.2rem;}
+strong.hl{color:var(--white);font-weight:500;}
 
-  /* ===========================
-     LAYOUT
-  =========================== */
-  .container {
-    max-width: 900px;
-    margin: 0 auto;
-    padding: 28px 20px 0;
-  }
+/* HERO */
+.hero-super{font-size:9px;letter-spacing:5px;text-transform:uppercase;color:var(--coral);font-weight:500;margin-bottom:1rem;}
+.hero-h{font-family:'Bebas Neue',sans-serif;font-size:88px;letter-spacing:3px;line-height:.88;margin-bottom:.6rem;}
+.hero-h .red{color:var(--coral);}
+.hero-italic{font-family:'DM Serif Display',serif;font-style:italic;font-size:17px;color:rgba(255,255,255,.35);margin-bottom:2rem;}
+.hero-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:2rem;}
+.chip{font-size:9px;letter-spacing:2px;text-transform:uppercase;padding:5px 14px;border:1px solid rgba(255,255,255,.12);border-radius:100px;color:rgba(255,255,255,.4);}
+.chip.red{border-color:rgba(232,75,58,.5);color:var(--coral);}
+.members-row{display:flex;gap:10px;flex-wrap:wrap;}
+.m-card{padding:8px 16px;border:1px solid var(--border);background:rgba(255,255,255,.03);font-size:12px;}
+.m-card .role{font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;}
+.m-card .name{font-weight:500;color:var(--white);}
+.hero-deco{position:absolute;right:55px;top:50%;transform:translateY(-50%);font-family:'Bebas Neue',sans-serif;font-size:280px;color:rgba(232,75,58,.04);line-height:1;user-select:none;pointer-events:none;}
 
-  /* ===========================
-     CARDS / PANELS
-  =========================== */
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 22px 24px;
-    margin-bottom: 18px;
-  }
-  .card-title {
-    font-family: var(--mono);
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    color: var(--accent);
-    margin-bottom: 18px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .card-title::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--border);
-  }
+/* AD CARD — two column layout inside section */
+.ad-layout{display:grid;grid-template-columns:1fr 1fr;gap:1.8rem;align-items:start;flex:1;}
+.ad-card{background:rgba(255,255,255,.025);border:1px solid var(--border);padding:1.4rem 1.6rem;position:relative;overflow:hidden;height:100%;}
+.ad-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--coral);}
 
-  /* ===========================
-     DIMENSION ROW
-  =========================== */
-  .dim-row {
-    display: flex;
-    gap: 16px;
-    flex-wrap: wrap;
-    align-items: flex-end;
-  }
-  .dim-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .dim-group label {
-    font-size: 12px;
-    color: var(--text-muted);
-    font-family: var(--mono);
-  }
-  .dim-group input[type=number] {
-    width: 72px;
-    padding: 8px 10px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    color: var(--text);
-    font-family: var(--mono);
-    font-size: 16px;
-    text-align: center;
-    outline: none;
-    transition: border-color 0.2s, box-shadow 0.2s;
-  }
-  .dim-group input[type=number]:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(91,138,240,0.15);
-  }
+.presenter-tag{display:inline-flex;align-items:center;gap:7px;margin-bottom:.9rem;}
+.presenter-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.presenter-name{font-size:8px;letter-spacing:3px;text-transform:uppercase;font-weight:500;}
 
-  .btn {
-    padding: 8px 18px;
-    border-radius: var(--radius);
-    border: none;
-    cursor: pointer;
-    font-family: var(--mono);
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    transition: all 0.2s;
-  }
-  .btn-primary {
-    background: var(--accent);
-    color: #fff;
-  }
-  .btn-primary:hover { background: #7aa3f5; transform: translateY(-1px); box-shadow: var(--glow); }
-  .btn-secondary {
-    background: var(--surface2);
-    color: var(--text-muted);
-    border: 1px solid var(--border);
-  }
-  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
-  .btn-example {
-    background: transparent;
-    color: var(--accent2);
-    border: 1px solid rgba(61,255,192,0.3);
-    font-size: 12px;
-    padding: 6px 14px;
-  }
-  .btn-example:hover { background: rgba(61,255,192,0.08); }
+.ad-brand{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:1px;color:var(--white);margin-bottom:2px;}
+.ad-product{font-size:12px;color:var(--muted);margin-bottom:.9rem;}
 
-  .btn-row {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    flex-wrap: wrap;
-    margin-top: 14px;
-  }
+.tags-row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:1rem;}
+.tag-pill{font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:3px 8px;border-radius:3px;font-weight:500;}
+.tag-strategy{background:rgba(26,173,173,.12);color:#4dd0d0;border:1px solid rgba(26,173,173,.2);}
+.tag-appeal{background:rgba(245,166,35,.1);color:#f5a623;border:1px solid rgba(245,166,35,.2);}
+.tag-framework{background:rgba(232,75,58,.1);color:#ff7a6b;border:1px solid rgba(232,75,58,.2);}
+.tag-medium{background:rgba(255,255,255,.05);color:var(--muted);border:1px solid var(--border);}
 
-  /* ===========================
-     COEFFICIENT TABLES
-  =========================== */
-  .table-wrap { overflow-x: auto; }
-  table {
-    border-collapse: collapse;
-    width: 100%;
-    min-width: max-content;
-  }
-  th {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    padding: 6px 8px 10px;
-    text-align: center;
-    white-space: nowrap;
-  }
-  td {
-    padding: 4px 6px;
-    text-align: center;
-  }
-  td.row-label {
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--text-muted);
-    padding-right: 12px;
-    white-space: nowrap;
-    text-align: left;
-  }
-  input.coeff {
-    width: 64px;
-    padding: 7px 6px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    color: var(--text);
-    font-family: var(--mono);
-    font-size: 14px;
-    text-align: center;
-    outline: none;
-    transition: border-color 0.2s, box-shadow 0.2s;
-  }
-  input.coeff:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(91,138,240,0.12);
-  }
-  select.ctype {
-    padding: 7px 10px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    color: var(--accent2);
-    font-family: var(--mono);
-    font-size: 14px;
-    outline: none;
-    cursor: pointer;
-    transition: border-color 0.2s;
-  }
-  select.ctype:focus { border-color: var(--accent); }
+/* Script points */
+.script-points{list-style:none;margin-top:.5rem;}
+.script-points li{font-size:12.5px;line-height:1.65;color:rgba(255,255,255,.55);padding:.35rem 0;border-bottom:1px solid rgba(255,255,255,.04);}
+.script-points li:last-child{border-bottom:none;}
+.script-points li strong{color:rgba(255,255,255,.9);font-weight:500;}
 
-  td.plus-sign {
-    font-family: var(--mono);
-    color: var(--text-dim);
-    font-size: 13px;
-    padding: 0 2px;
-  }
+.divider{width:100%;height:1px;background:var(--border);margin:.9rem 0;}
+.ad-card-footer{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;}
+.ad-card-footer::before{content:'';width:14px;height:1px;background:var(--muted);opacity:.4;}
 
-  /* ===========================
-     SOLVE BUTTON
-  =========================== */
-  .solve-btn {
-    width: 100%;
-    padding: 14px;
-    font-size: 15px;
-    border-radius: 8px;
-    background: linear-gradient(135deg, var(--accent), #7b5bf5);
-    color: #fff;
-    border: none;
-    cursor: pointer;
-    font-family: var(--mono);
-    font-weight: 600;
-    letter-spacing: 1px;
-    transition: all 0.2s;
-    position: relative;
-    overflow: hidden;
-  }
-  .solve-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 28px rgba(91,138,240,0.4);
-  }
-  .solve-btn:active { transform: translateY(0); }
+/* VIDEO PANEL */
+.video-panel{display:flex;flex-direction:column;gap:1rem;height:100%;}
+.video-embed{position:relative;padding-bottom:56.25%;border-radius:4px;overflow:hidden;border:1px solid var(--border);}
+.video-embed iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none;}
+.video-link{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--coral);text-decoration:none;padding:7px 14px;border:1px solid rgba(232,75,58,.3);border-radius:3px;background:rgba(232,75,58,.06);transition:background .18s;}
+.video-link:hover{background:rgba(232,75,58,.14);}
+.video-link svg{width:13px;height:13px;fill:currentColor;flex-shrink:0;}
 
-  /* ===========================
-     RESULTS BOX
-  =========================== */
-  #results {
-    display: none;
-    animation: fadeUp 0.35s ease;
-  }
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(12px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
+/* COLORS */
+.dot-islombek{background:#4dd0d0;} .name-islombek{color:#4dd0d0;}
+.dot-salokhiddin{background:#f5a623;} .name-salokhiddin{color:#f5a623;}
+.dot-abbos{background:#b47bff;} .name-abbos{color:#b47bff;}
 
-  .result-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 5px 14px;
-    border-radius: 20px;
-    font-family: var(--mono);
-    font-size: 12px;
-    font-weight: 600;
-    margin-bottom: 18px;
-  }
-  .status-optimal { background: rgba(61,255,192,0.12); color: var(--accent2); border: 1px solid rgba(61,255,192,0.25); }
-  .status-infeasible { background: rgba(255,107,107,0.12); color: var(--accent3); border: 1px solid rgba(255,107,107,0.25); }
-  .status-unbounded { background: rgba(255,200,80,0.12); color: #ffc850; border: 1px solid rgba(255,200,80,0.25); }
-
-  .obj-value {
-    font-family: var(--mono);
-    font-size: 36px;
-    font-weight: 600;
-    color: var(--accent2);
-    line-height: 1;
-    margin-bottom: 6px;
-  }
-  .obj-label {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    margin-bottom: 22px;
-  }
-
-  .var-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 10px;
-    margin-bottom: 20px;
-  }
-  .var-card {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 14px;
-    text-align: center;
-  }
-  .var-name {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--text-muted);
-    margin-bottom: 4px;
-    letter-spacing: 1px;
-  }
-  .var-val {
-    font-family: var(--mono);
-    font-size: 22px;
-    font-weight: 600;
-    color: var(--accent);
-  }
-
-  .info-msg {
-    font-family: var(--mono);
-    font-size: 14px;
-    color: var(--text-muted);
-    line-height: 1.7;
-  }
-  .info-msg.error { color: var(--accent3); }
-
-  /* ===========================
-     ITERATION LOG (collapsible)
-  =========================== */
-  .log-toggle {
-    background: none;
-    border: none;
-    color: var(--text-dim);
-    font-family: var(--mono);
-    font-size: 12px;
-    cursor: pointer;
-    padding: 0;
-    margin-top: 10px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    transition: color 0.2s;
-  }
-  .log-toggle:hover { color: var(--text-muted); }
-  .log-box {
-    display: none;
-    margin-top: 12px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 14px 16px;
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--text-dim);
-    line-height: 1.9;
-    max-height: 260px;
-    overflow-y: auto;
-  }
-  .log-box.open { display: block; }
-  .log-box .pivot { color: var(--accent); }
-  .log-box .phase { color: var(--accent2); font-weight: 600; }
-
-  /* ===========================
-     RESPONSIVE
-  =========================== */
-  @media (max-width: 600px) {
-    header { padding: 20px 16px; }
-    .container { padding: 18px 12px 0; }
-    .card { padding: 16px 14px; }
-    .dim-row { gap: 12px; }
-    input.coeff { width: 54px; font-size: 13px; }
-    .obj-value { font-size: 28px; }
-  }
+/* FADE IN */
+.fi{opacity:0;transform:translateY(16px);transition:opacity .5s ease,transform .5s ease;}
+.fi.vis{opacity:1;transform:none;}
 </style>
 </head>
 <body>
 
-<header>
-  <h1>LP <span>Simplex</span> Solver</h1>
-  <p>Two-Phase Method · Maximization · General Constraints</p>
-</header>
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="eyebrow">Advertising · Spring 2026</div>
+    <h1>Group Project<br>Presentation</h1>
+  </div>
+  <div class="nav-section-label">Sections</div>
+  <a class="nav-item active" href="#hero"><span class="nav-badge">00</span><span class="nav-dot"></span>Overview</a>
+  <a class="nav-item" href="#abbos"><span class="nav-badge">01</span><span class="nav-dot"></span>Abbos</a>
+  <a class="nav-item" href="#islombek"><span class="nav-badge">02</span><span class="nav-dot"></span>Islombek</a>
+  <a class="nav-item" href="#salokhiddin"><span class="nav-badge">03</span><span class="nav-dot"></span>Salokhiddin</a>
+  <a class="nav-item" href="#summary"><span class="nav-badge">04</span><span class="nav-dot"></span>Thank You</a>
+  <div class="sidebar-members">
+    <div class="mlabel">Team Members</div>
+    <div class="member-pill"><div class="avatar" style="background:rgba(180,123,255,.15);color:#b47bff;">AB</div>Abbos</div>
+    <div class="member-pill"><div class="avatar" style="background:rgba(77,208,208,.15);color:#4dd0d0;">IL</div>Islombek</div>
+    <div class="member-pill"><div class="avatar" style="background:rgba(245,166,35,.15);color:#f5a623;">SA</div>Salokhiddin</div>
+  </div>
+</nav>
 
-<div class="container">
+<main>
 
-  <!-- ── STEP 1: DIMENSIONS ─────────────────────── -->
-  <div class="card">
-    <div class="card-title">01 — Problem Dimensions</div>
-    <div class="dim-row">
-      <div class="dim-group">
-        <label>Variables (n)</label>
-        <input type="number" id="nVars" value="2" min="1" max="10">
+<!-- 00 · HERO -->
+<section id="hero">
+  <div class="hero-deco" aria-hidden="true">AD</div>
+  <div class="hero-super">Advertising Class · Group Project</div>
+  <div class="hero-h">Ad<span class="red">vert</span><br>ising</div>
+  <div class="hero-italic">Real ads. Real analysis. Spring 2026.</div>
+  <div class="hero-chips">
+    <span class="chip red">Message Strategies</span>
+    <span class="chip red">Appeals</span>
+    <span class="chip red">Executional Frameworks</span>
+    <span class="chip red">Spokesperson</span>
+  </div>
+  <div class="members-row">
+    <div class="m-card"><div class="role">Member 01</div><div class="name">Abbos</div></div>
+    <div class="m-card"><div class="role">Member 02</div><div class="name">Islombek</div></div>
+    <div class="m-card"><div class="role">Member 03</div><div class="name">Salokhiddin</div></div>
+  </div>
+</section>
+
+<!-- 01 · ABBOS — Artel Vacuum Cleaner -->
+<section id="abbos">
+  <div class="sec-ghost">01</div>
+  <div class="sec-tag fi">Member 01 · Abbos</div>
+  <h2 class="fi">Abbos</h2>
+  <p class="lead fi">Artel Vacuum Cleaner — <strong class="hl">Humor Appeal · Affective Strategy · Fantasy Framework</strong></p>
+  <div class="ad-layout fi">
+    <div class="ad-card">
+      <div class="presenter-tag">
+        <div class="presenter-dot dot-abbos"></div>
+        <span class="presenter-name name-abbos">Artel · Uzbekistan · 2021</span>
       </div>
-      <div class="dim-group">
-        <label>Constraints (m)</label>
-        <input type="number" id="mCons" value="3" min="1" max="15">
+      <div class="ad-brand">Artel — Vacuum Cleaner</div>
+      <div class="ad-product">Home Appliance Brand · Uzbekistan · TV Commercial · 2021</div>
+      <div class="tags-row">
+        <span class="tag-pill tag-strategy">Affective</span>
+        <span class="tag-pill tag-appeal">Humor Appeal</span>
+        <span class="tag-pill tag-framework">Fantasy</span>
+        <span class="tag-pill tag-medium">TV Commercial</span>
       </div>
-      <div class="btn-row" style="margin-top:0">
-        <button class="btn btn-secondary" onclick="buildForm()">Build Form</button>
-        <button class="btn btn-example" onclick="loadPinocchio()">Load Example (Pinocchio)</button>
-        <button class="btn btn-example" onclick="loadExample2()">Load Example 2</button>
+      <ul class="script-points">
+        <li><strong>What happens:</strong> A family experiences sudden zero gravity — furniture floats, people fly around. The reveal: someone upstairs is using an Artel vacuum so powerful it sucks everything up through the whole house.</li>
+        <li><strong>Humor Appeal:</strong> Builds tension with a mystery, then delivers an absurd, funny punchline. The exaggeration makes audiences laugh and remember the brand.</li>
+        <li><strong>Affective Strategy:</strong> No product specs — just laughter and surprise. Positive emotions become associated with the Artel brand.</li>
+        <li><strong>Fantasy Framework:</strong> Zero gravity from a vacuum is impossible — but that imaginative, unrealistic scenario is exactly what makes it creative and memorable.</li>
+      </ul>
+      <div class="divider"></div>
+      <div class="ad-card-footer">Since the ad is in Uzbek, Abbos will translate and explain it live</div>
+    </div>
+    <div class="video-panel">
+      <div class="video-embed">
+        <iframe
+          src="https://www.youtube-nocookie.com/embed/hMfjlZFdvI0?rel=0"
+          title="Artel Vacuum Cleaner Ad 2021"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen>
+        </iframe>
       </div>
+      <a class="video-link" href="https://youtu.be/hMfjlZFdvI0" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
+        Watch on YouTube ↗
+      </a>
     </div>
   </div>
+</section>
 
-  <!-- ── STEP 2: OBJECTIVE + CONSTRAINTS ─────────── -->
-  <div class="card" id="formCard" style="display:none">
-    <div class="card-title">02 — Objective Function &amp; Constraints</div>
-
-    <div style="margin-bottom:22px">
-      <div style="font-family:var(--mono);font-size:12px;color:var(--text-muted);margin-bottom:10px;">
-        Maximize: c₁x₁ + c₂x₂ + … + cₙxₙ
+<!-- 02 · ISLOMBEK — LEGO FIFA World Cup -->
+<section id="islombek">
+  <div class="sec-ghost">02</div>
+  <div class="sec-tag fi">Member 02 · Islombek</div>
+  <h2 class="fi">Islombek</h2>
+  <p class="lead fi">LEGO FIFA World Cup 2026 — <strong class="hl">Celebrity Spokesperson · Conative Strategy · Fantasy Framework</strong></p>
+  <div class="ad-layout fi">
+    <div class="ad-card">
+      <div class="presenter-tag">
+        <div class="presenter-dot dot-islombek"></div>
+        <span class="presenter-name name-islombek">LEGO · ft. Messi, Ronaldo, Mbappé, Vinícius Jr. · 2026</span>
       </div>
-      <div class="table-wrap">
-        <table id="objTable"></table>
+      <div class="ad-brand">LEGO — FIFA World Cup 2026</div>
+      <div class="ad-product">The LEGO Group · ft. Messi, Ronaldo, Mbappé, Vinícius Jr. · Global Campaign</div>
+      <div class="tags-row">
+        <span class="tag-pill tag-strategy">Conative</span>
+        <span class="tag-pill tag-appeal">Music / Drama</span>
+        <span class="tag-pill tag-framework">Fantasy</span>
+        <span class="tag-pill tag-framework">Testimonial</span>
+        <span class="tag-pill tag-medium">YouTube / Social Media</span>
       </div>
+      <ul class="script-points">
+        <li><strong>Celebrity Spokesperson:</strong> Messi, Ronaldo, Mbappé, and Vinícius Jr. — four of the world's biggest athletes. Their fame and credibility do the selling instantly.</li>
+        <li><strong>Fantasy Framework:</strong> Real football legends placed into a playful LEGO world — imaginative, impossible, and totally memorable.</li>
+        <li><strong>Testimonial:</strong> The celebrities directly interact with and show off the LEGO minifigure sets.</li>
+        <li><strong>Conative Strategy:</strong> Timed to the FIFA World Cup, the ad drives an immediate impulse to buy the collectible sets before the tournament ends.</li>
+      </ul>
+      <div class="divider"></div>
+      <div class="ad-card-footer">Global football icons + World Cup timing = maximum purchase urgency</div>
     </div>
-
-    <div>
-      <div style="font-family:var(--mono);font-size:12px;color:var(--text-muted);margin-bottom:10px;">
-        Subject to: aᵢ₁x₁ + … + aᵢₙxₙ [≤/≥/=] bᵢ &nbsp;|&nbsp; all xⱼ ≥ 0
+    <div class="video-panel">
+      <div class="video-embed">
+        <iframe
+          src="https://www.youtube-nocookie.com/embed/EpK0P3vfDJc?rel=0"
+          title="LEGO FIFA World Cup 2026 Ad"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen>
+        </iframe>
       </div>
-      <div class="table-wrap">
-        <table id="conTable"></table>
-      </div>
+      <a class="video-link" href="https://youtu.be/EpK0P3vfDJc" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
+        Watch on YouTube ↗
+      </a>
     </div>
   </div>
+</section>
 
-  <!-- ── SOLVE BUTTON ────────────────────────────── -->
-  <div id="solveRow" style="display:none;margin-bottom:18px">
-    <button class="solve-btn" onclick="solve()">⟶ SOLVE</button>
+<!-- 03 · SALOKHIDDIN — Volvo Trucks "The Technician" -->
+<section id="salokhiddin">
+  <div class="sec-ghost">03</div>
+  <div class="sec-tag fi">Member 03 · Salokhiddin</div>
+  <h2 class="fi">Salokhiddin</h2>
+  <p class="lead fi">Volvo Trucks "The Technician" — <strong class="hl">Cognitive Strategy · Rationality Appeal · Demonstration Framework</strong></p>
+  <div class="ad-layout fi">
+    <div class="ad-card">
+      <div class="presenter-tag">
+        <div class="presenter-dot dot-salokhiddin"></div>
+        <span class="presenter-name name-salokhiddin">Volvo Trucks · Volvo FMX · Live Test Series</span>
+      </div>
+      <div class="ad-brand">Volvo Trucks — "The Technician"</div>
+      <div class="ad-product">Volvo FMX · Live Test Campaign · Global</div>
+      <div class="tags-row">
+        <span class="tag-pill tag-strategy">Cognitive</span>
+        <span class="tag-pill tag-appeal">Rationality Appeal</span>
+        <span class="tag-pill tag-framework">Demonstration</span>
+        <span class="tag-pill tag-medium">YouTube / TV</span>
+      </div>
+      <ul class="script-points">
+        <li><strong>What happens:</strong> Roland Svensson's head is 275mm. The Volvo FMX has 300mm of ground clearance. The ad proves it live — his head passes under the truck as it drives over him.</li>
+        <li><strong>Cognitive Strategy:</strong> Targets thinking, not feeling. A precise fact — 275mm vs 300mm — communicates a specific product specification directly.</li>
+        <li><strong>Rationality Appeal:</strong> No emotion, no humor. Real numbers + live proof = logical conviction. The audience is persuaded through reason.</li>
+        <li><strong>Demonstration Framework:</strong> Part of Volvo's famous Live Test series — product features shown in real, spectacular, verifiable ways.</li>
+      </ul>
+      <div class="divider"></div>
+      <div class="ad-card-footer">Roland's head = 275mm · Volvo FMX clearance = 300mm · a few centimeters make all the difference</div>
+    </div>
+    <div class="video-panel">
+      <div class="video-embed">
+        <iframe
+          src="https://www.youtube-nocookie.com/embed/AoVI2KzO-_Y?rel=0"
+          title="Volvo Trucks – The Technician"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen>
+        </iframe>
+      </div>
+      <a class="video-link" href="https://youtu.be/AoVI2KzO-_Y" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
+        Watch on YouTube ↗
+      </a>
+    </div>
   </div>
+</section>
 
-  <!-- ── RESULTS ─────────────────────────────────── -->
-  <div class="card" id="results">
-    <div class="card-title">03 — Results</div>
-    <div id="resultContent"></div>
-    <button class="log-toggle" onclick="toggleLog()">▸ Show iteration log</button>
-    <div class="log-box" id="logBox"></div>
+<!-- 04 · THANK YOU -->
+<section id="summary" style="align-items:center;justify-content:center;text-align:center;">
+  <div class="sec-ghost" style="right:auto;left:50%;transform:translateX(-50%);top:20px;font-size:200px;opacity:.018;">TY</div>
+  <div class="sec-tag fi" style="justify-content:center;">Spring 2026 · Advertising Group Project</div>
+  <h2 class="fi" style="font-size:80px;letter-spacing:3px;margin-bottom:1.4rem;">Thank You<br><span style="color:var(--coral);">for Your</span><br>Attention</h2>
+  <div class="members-row fi" style="justify-content:center;margin-top:2rem;">
+    <div class="m-card"><div class="role">Member 01</div><div class="name">Abbos</div></div>
+    <div class="m-card"><div class="role">Member 02</div><div class="name">Islombek</div></div>
+    <div class="m-card"><div class="role">Member 03</div><div class="name">Salokhiddin</div></div>
   </div>
+</section>
 
-</div><!-- /container -->
+</main>
 
 <script>
-/* ============================================================
-   LP SOLVER — Two-Phase Simplex Method
-   ============================================================
-   OVERVIEW:
-   - Phase 1: Minimise sum of artificial variables to find
-     a basic feasible solution (BFS). If min > 0 → infeasible.
-   - Phase 2: Maximise the original objective from the BFS.
-   The simplex pivot rule: choose entering variable by most
-   negative reduced cost; leaving variable by min-ratio test.
-   ============================================================ */
+const sections = document.querySelectorAll('section');
+const navItems = document.querySelectorAll('.nav-item');
+const fis = document.querySelectorAll('.fi');
 
-// ─── GLOBAL LOG for iteration trace ─────────────────────────
-let iterLog = [];
+const obs = new IntersectionObserver(e => e.forEach(x => { if(x.isIntersecting) x.target.classList.add('vis'); }), {threshold:0.1});
+fis.forEach(el => obs.observe(el));
 
-// ─── NUMERIC TOLERANCE ──────────────────────────────────────
-const EPS = 1e-9;
-
-/* ============================================================
-   buildForm() — reads n,m and renders input tables
-   ============================================================ */
-function buildForm() {
-  const n = parseInt(document.getElementById('nVars').value);
-  const m = parseInt(document.getElementById('mCons').value);
-  if (isNaN(n) || isNaN(m) || n < 1 || m < 1) {
-    alert('Please enter valid n ≥ 1, m ≥ 1'); return;
-  }
-
-  // ── Objective row ──
-  const objTbl = document.getElementById('objTable');
-  let oHdr = '<tr><th></th>';
-  for (let j = 1; j <= n; j++) oHdr += `<th>c${j}</th><th></th>`;
-  oHdr += '</tr>';
-  let oRow = '<tr><td class="row-label">Maximize</td>';
-  for (let j = 1; j <= n; j++) {
-    oRow += `<td><input class="coeff" id="c${j}" value="0" type="number" step="any"></td>`;
-    oRow += `<td class="plus-sign">${j < n ? '+' : ''}</td>`;
-  }
-  oRow += '</tr>';
-  objTbl.innerHTML = oHdr + oRow;
-
-  // ── Constraint rows ──
-  const conTbl = document.getElementById('conTable');
-  let hdr = '<tr><th>Row</th>';
-  for (let j = 1; j <= n; j++) hdr += `<th>a·x${j}</th><th></th>`;
-  hdr += '<th>Type</th><th>RHS</th></tr>';
-
-  let rows = '';
-  for (let i = 1; i <= m; i++) {
-    rows += `<tr><td class="row-label">C${i}</td>`;
-    for (let j = 1; j <= n; j++) {
-      rows += `<td><input class="coeff" id="a${i}_${j}" value="0" type="number" step="any"></td>`;
-      rows += `<td class="plus-sign">${j < n ? '+' : ''}</td>`;
-    }
-    rows += `<td><select class="ctype" id="type${i}">
-               <option value="le">≤</option>
-               <option value="ge">≥</option>
-               <option value="eq">=</option>
-             </select></td>`;
-    rows += `<td><input class="coeff" id="b${i}" value="0" type="number" step="any"></td>`;
-    rows += '</tr>';
-  }
-  conTbl.innerHTML = hdr + rows;
-
-  document.getElementById('formCard').style.display = 'block';
-  document.getElementById('solveRow').style.display = 'block';
-  document.getElementById('results').style.display = 'none';
+function updateNav() {
+  const mid = window.innerHeight * 0.4;
+  let cur = sections[0];
+  sections.forEach(s => { if(s.getBoundingClientRect().top <= mid) cur = s; });
+  navItems.forEach(n => n.classList.toggle('active', n.getAttribute('href') === '#' + cur.id));
 }
-
-/* ============================================================
-   readProblem() — collect inputs into a problem object
-   Returns { n, m, c[], A[][], b[], types[] }
-   ============================================================ */
-function readProblem() {
-  const n = parseInt(document.getElementById('nVars').value);
-  const m = parseInt(document.getElementById('mCons').value);
-  const c = [], A = [], b = [], types = [];
-  for (let j = 1; j <= n; j++) c.push(parseFloat(document.getElementById(`c${j}`).value) || 0);
-  for (let i = 1; i <= m; i++) {
-    A.push([]);
-    for (let j = 1; j <= n; j++)
-      A[i-1].push(parseFloat(document.getElementById(`a${i}_${j}`).value) || 0);
-    b.push(parseFloat(document.getElementById(`b${i}`).value) || 0);
-    types.push(document.getElementById(`type${i}`).value); // 'le','ge','eq'
-  }
-  return { n, m, c, A, b, types };
-}
-
-/* ============================================================
-   twoPhaseSimplexMax(problem)
-   ─────────────────────────────────────────────────────────
-   Returns { status, objVal, solution[], log[] }
-   status: 'optimal' | 'infeasible' | 'unbounded'
-
-   Variable index layout in tableau columns (0-based):
-     0 … n-1          : original decision variables x1..xn
-     n … n+ns-1       : slack / surplus variables
-     n+ns … n+ns+na-1 : artificial variables
-   ============================================================ */
-function twoPhaseSimplexMax({ n, m, c, A, b, types }) {
-  const log = [];
-  log.push(`<span class="phase">Problem: ${n} variables, ${m} constraints</span>`);
-
-  /* ── Step 1: Standardise — add slacks, surplus, artificials ── */
-  // For each constraint:
-  //   ≤  → add slack    (+s)
-  //   ≥  → subtract surplus (+s with -1) + artificial (+a)
-  //   =  → artificial (+a)
-
-  let ns = 0; // number of slacks/surplus
-  let na = 0; // number of artificials
-
-  // Decide sign and need for artificial per constraint
-  const slackSign = [];  // +1 for ≤, -1 for ≥, 0 for =
-  const needArt   = []; // true for ≥ and =
-
-  for (let i = 0; i < m; i++) {
-    // Ensure b[i] ≥ 0 by flipping the constraint if needed
-    if (b[i] < 0) {
-      b[i] = -b[i];
-      for (let j = 0; j < n; j++) A[i][j] = -A[i][j];
-      // flip type
-      if (types[i] === 'le') types[i] = 'ge';
-      else if (types[i] === 'ge') types[i] = 'le';
-    }
-    if (types[i] === 'le') { slackSign.push(1);  needArt.push(false); ns++; }
-    if (types[i] === 'ge') { slackSign.push(-1); needArt.push(true);  ns++; na++; }
-    if (types[i] === 'eq') { slackSign.push(0);  needArt.push(true);  na++; }
-  }
-
-  const totalVars = n + ns + na;
-  // Column indices
-  const slackStart = n;
-  const artStart   = n + ns;
-
-  /* ── Build full tableau rows (one per constraint) ── */
-  // Tableau: rows = constraints, cols = [all vars | RHS]
-  // basis[i] = column index of basic variable in row i
-
-  let tableau = [];
-  let basis   = [];
-  let slackIdx = 0; // running index into slack columns
-  let artIdx   = 0; // running index into artificial columns
-
-  for (let i = 0; i < m; i++) {
-    const row = new Array(totalVars + 1).fill(0);
-    // Original variables
-    for (let j = 0; j < n; j++) row[j] = A[i][j];
-    // RHS
-    row[totalVars] = b[i];
-
-    if (types[i] === 'le') {
-      row[slackStart + slackIdx] = 1;  // add slack
-      basis.push(slackStart + slackIdx);
-      slackIdx++;
-    } else if (types[i] === 'ge') {
-      row[slackStart + slackIdx] = -1; // subtract surplus
-      row[artStart   + artIdx]   = 1;  // add artificial
-      basis.push(artStart + artIdx);
-      slackIdx++; artIdx++;
-    } else { // eq
-      row[artStart + artIdx] = 1;
-      basis.push(artStart + artIdx);
-      artIdx++;
-    }
-    tableau.push(row);
-  }
-
-  /* ── Helper: pivot on element (pivRow, pivCol) ── */
-  function pivot(tab, bas, pivRow, pivCol) {
-    const pivEl = tab[pivRow][pivCol];
-    // Normalise pivot row
-    for (let k = 0; k <= totalVars; k++) tab[pivRow][k] /= pivEl;
-    // Eliminate column in all other rows
-    for (let i2 = 0; i2 < tab.length; i2++) {
-      if (i2 === pivRow) continue;
-      const factor = tab[i2][pivCol];
-      if (Math.abs(factor) < EPS) continue;
-      for (let k = 0; k <= totalVars; k++) tab[i2][k] -= factor * tab[pivRow][k];
-    }
-    bas[pivRow] = pivCol;
-  }
-
-  /* ── Helper: run one full simplex phase ──
-     objCoeffs: array length totalVars (cost row coefficients, MINIMISATION sense here)
-     Returns 'optimal','unbounded', or 'cycling_guard'
-  ── */
-  function simplexPhase(tab, bas, objCoeffs, phaseLabel, maxIter = 500) {
-    // Build objective row (reduced costs = objCoeffs minus basic contributions)
-    // We store the current reduced costs in 'rc' vector
-    let rc = objCoeffs.slice(); // length totalVars
-    let objVal = 0;
-
-    // Compute initial reduced costs by subtracting basic variable contributions
-    for (let i = 0; i < m; i++) {
-      const bv = bas[i];
-      const cb = objCoeffs[bv];
-      for (let k = 0; k <= totalVars; k++) {
-        if (k < totalVars) rc[k] -= cb * tab[i][k];
-        else objVal += cb * tab[i][k]; // rhs contribution
-      }
-    }
-
-    for (let iter = 0; iter < maxIter; iter++) {
-      // ── Find entering variable (most negative reduced cost) ──
-      let enterCol = -1, minRC = -EPS;
-      for (let k = 0; k < totalVars; k++) {
-        if (rc[k] < minRC) { minRC = rc[k]; enterCol = k; }
-      }
-      if (enterCol === -1) {
-        // Optimal for this phase
-        let rhs = 0;
-        for (let i2 = 0; i2 < m; i2++) rhs += objCoeffs[bas[i2]] * tab[i2][totalVars];
-        log.push(`<span class="phase">${phaseLabel} optimal after ${iter} pivots.</span>`);
-        return { status: 'optimal', objVal: rhs };
-      }
-
-      // ── Min-ratio test (Bland's tie-breaking: pick lowest index row) ──
-      let leaveRow = -1, minRatio = Infinity;
-      for (let i = 0; i < m; i++) {
-        const el = tab[i][enterCol];
-        if (el > EPS) {
-          const ratio = tab[i][totalVars] / el;
-          if (ratio < minRatio - EPS || (Math.abs(ratio - minRatio) < EPS && (leaveRow === -1 || bas[i] < bas[leaveRow]))) {
-            minRatio = ratio; leaveRow = i;
-          }
-        }
-      }
-      if (leaveRow === -1) return { status: 'unbounded' };
-
-      log.push(`${phaseLabel} iter ${iter+1}: enter col ${enterCol+1}, leave row ${leaveRow+1} (x${bas[leaveRow]+1} out)`);
-
-      // Perform pivot
-      pivot(tab, bas, leaveRow, enterCol);
-
-      // Update reduced costs
-      rc = objCoeffs.slice();
-      for (let i = 0; i < m; i++) {
-        const bv = bas[i];
-        const cb = objCoeffs[bv];
-        for (let k = 0; k < totalVars; k++) rc[k] -= cb * tab[i][k];
-      }
-    }
-    return { status: 'cycling_guard' };
-  }
-
-  /* ====================================================
-     PHASE 1 — Minimise sum of artificial variables
-     Objective (minimise): sum_{a} a_k  ≡  maximise -sum_{a} a_k
-     In minimisation terms: cost of artificial = +1, rest = 0
-  ==================================================== */
-  if (na > 0) {
-    log.push(`<span class="phase">── Phase 1 ── Minimising ${na} artificial variable(s)</span>`);
-    const phase1Obj = new Array(totalVars).fill(0);
-    for (let k = artStart; k < totalVars; k++) phase1Obj[k] = 1; // minimise artificials
-
-    const res1 = simplexPhase(tableau, basis, phase1Obj, 'P1');
-    if (res1.status === 'unbounded') {
-      return { status: 'infeasible', log }; // shouldn't happen but guard
-    }
-    if (res1.status === 'cycling_guard') {
-      return { status: 'infeasible', log }; // degenerate fallback
-    }
-
-    // Check Phase 1 objective value (should be 0 if feasible)
-    let artSum = 0;
-    for (let i = 0; i < m; i++) artSum += (basis[i] >= artStart) ? tableau[i][totalVars] : 0;
-
-    log.push(`Phase 1 objective value = ${artSum.toFixed(8)}`);
-
-    if (artSum > 1e-6) {
-      log.push(`<span class="phase">INFEASIBLE — artificial variables remain in basis with positive value.</span>`);
-      return { status: 'infeasible', log };
-    }
-
-    // Drive artificials out of basis if still there (at zero level)
-    for (let i = 0; i < m; i++) {
-      if (basis[i] >= artStart) {
-        // Try to pivot an original/slack variable in
-        let found = false;
-        for (let k = 0; k < artStart; k++) {
-          if (Math.abs(tableau[i][k]) > EPS) {
-            pivot(tableau, basis, i, k);
-            log.push(`Degenerate pivot: drove artificial out of row ${i+1}`);
-            found = true; break;
-          }
-        }
-        // If not found, row is redundant — leave it (it won't affect Phase 2)
-      }
-    }
-  } else {
-    log.push(`<span class="phase">No artificials needed — direct Phase 2.</span>`);
-  }
-
-  /* ====================================================
-     PHASE 2 — Maximise original objective
-     We MAXIMISE c·x, which in standard minimise form is: minimise -c·x
-     So phase2Obj[j] = -c[j] for original vars, 0 for slacks/artificials
-  ==================================================== */
-  log.push(`<span class="phase">── Phase 2 ── Maximising objective</span>`);
-
-  const phase2Obj = new Array(totalVars).fill(0);
-  for (let j = 0; j < n; j++) phase2Obj[j] = -c[j]; // negated for minimisation internally
-
-  const res2 = simplexPhase(tableau, basis, phase2Obj, 'P2');
-
-  if (res2.status === 'unbounded') {
-    return { status: 'unbounded', log };
-  }
-  if (res2.status === 'cycling_guard') {
-    return { status: 'error', log };
-  }
-
-  /* ── Extract solution ── */
-  const solution = new Array(n).fill(0);
-  for (let i = 0; i < m; i++) {
-    if (basis[i] < n) { // basic original variable
-      solution[basis[i]] = Math.max(0, tableau[i][totalVars]);
-    }
-  }
-
-  // Compute objective value: c · x
-  let objVal = 0;
-  for (let j = 0; j < n; j++) objVal += c[j] * solution[j];
-
-  log.push(`<span class="phase">Optimal! z* = ${objVal.toFixed(6)}</span>`);
-  return { status: 'optimal', objVal, solution, log };
-}
-
-/* ============================================================
-   solve() — called by the Solve button
-   ============================================================ */
-function solve() {
-  const prob = readProblem();
-  const result = twoPhaseSimplexMax(prob);
-
-  // ── Render results ──
-  const rc = document.getElementById('resultContent');
-  const logBox = document.getElementById('logBox');
-  logBox.innerHTML = result.log.join('<br>');
-  logBox.classList.remove('open');
-  document.querySelector('.log-toggle').textContent = '▸ Show iteration log';
-
-  let html = '';
-  if (result.status === 'optimal') {
-    html += `<div class="result-status status-optimal">● OPTIMAL SOLUTION FOUND</div>`;
-    html += `<div class="obj-value">${fmt(result.objVal)}</div>`;
-    html += `<div class="obj-label">Optimal Objective Value (Z*)</div>`;
-    html += `<div class="var-grid">`;
-    for (let j = 0; j < prob.n; j++) {
-      html += `<div class="var-card">
-        <div class="var-name">x${j+1}</div>
-        <div class="var-val">${fmt(result.solution[j])}</div>
-      </div>`;
-    }
-    html += `</div>`;
-  } else if (result.status === 'infeasible') {
-    html += `<div class="result-status status-infeasible">✕ INFEASIBLE</div>`;
-    html += `<div class="info-msg error">The problem has no feasible solution.<br>The constraints are contradictory — no point satisfies all of them simultaneously.</div>`;
-  } else if (result.status === 'unbounded') {
-    html += `<div class="result-status status-unbounded">∞ UNBOUNDED</div>`;
-    html += `<div class="info-msg">The objective function can grow without limit.<br>Check your constraint directions — a ≤ constraint may be missing.</div>`;
-  } else {
-    html += `<div class="result-status status-infeasible">? ERROR</div>`;
-    html += `<div class="info-msg error">Solver did not converge. Check your input values.</div>`;
-  }
-
-  rc.innerHTML = html;
-  const res = document.getElementById('results');
-  res.style.display = 'block';
-  res.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-/* ── Format number: remove near-zero, trim decimals ── */
-function fmt(v) {
-  if (Math.abs(v) < 1e-8) return '0';
-  // Round to 6 sig figs
-  const rounded = parseFloat(v.toPrecision(8));
-  // Remove trailing zeros
-  return parseFloat(rounded.toFixed(6)).toString();
-}
-
-function toggleLog() {
-  const lb = document.getElementById('logBox');
-  const btn = document.querySelector('.log-toggle');
-  lb.classList.toggle('open');
-  btn.textContent = lb.classList.contains('open') ? '▾ Hide iteration log' : '▸ Show iteration log';
-}
-
-/* ============================================================
-   EXAMPLE: Pinocchio Factory Problem
-   A classic textbook LP:
-     Maximise  Z = 5x₁ + 4x₂
-     Subject to:
-       6x₁ + 4x₂ ≤ 24   (machine hours)
-       x₁ + 2x₂ ≤  6    (assembly hours)
-       x₁, x₂ ≥ 0
-   Optimal: x₁=3, x₂=1.5, Z=22.5  (may vary by version)
-   ============================================================ */
-function loadPinocchio() {
-  document.getElementById('nVars').value = 2;
-  document.getElementById('mCons').value = 2;
-  buildForm();
-  // Objective
-  setVal('c1', 5); setVal('c2', 4);
-  // Constraint 1: 6x1 + 4x2 ≤ 24
-  setVal('a1_1', 6); setVal('a1_2', 4); setVal('b1', 24); setType('type1', 'le');
-  // Constraint 2: x1 + 2x2 ≤ 6
-  setVal('a2_1', 1); setVal('a2_2', 2); setVal('b2', 6);  setType('type2', 'le');
-}
-
-/* ============================================================
-   EXAMPLE 2: Mixed constraints (≤, ≥, =)
-     Maximise  Z = 3x₁ + 2x₂ + 5x₃
-     Subject to:
-       x₁ + 2x₂ + x₃ ≤ 430
-       3x₁ + 2x₃      ≥ 460   (≥ to demo Phase 1)
-       x₁ + 4x₂       = 420   (= to demo artificial)
-       x₁, x₂, x₃ ≥ 0
-   ============================================================ */
-function loadExample2() {
-  document.getElementById('nVars').value = 3;
-  document.getElementById('mCons').value = 3;
-  buildForm();
-  setVal('c1', 3); setVal('c2', 2); setVal('c3', 5);
-  setVal('a1_1',1); setVal('a1_2',2); setVal('a1_3',1); setVal('b1',430); setType('type1','le');
-  setVal('a2_1',3); setVal('a2_2',0); setVal('a2_3',2); setVal('b2',460); setType('type2','ge');
-  setVal('a3_1',1); setVal('a3_2',4); setVal('a3_3',0); setVal('b3',420); setType('type3','eq');
-}
-
-function setVal(id, v) { const el = document.getElementById(id); if (el) el.value = v; }
-function setType(id, v) { const el = document.getElementById(id); if (el) el.value = v; }
-
-// Auto-build on load so the form is immediately visible
-window.onload = () => { loadPinocchio(); };
+window.addEventListener('scroll', updateNav, {passive:true});
+updateNav();
+navItems.forEach(n => n.addEventListener('click', e => {
+  e.preventDefault();
+  document.querySelector(n.getAttribute('href'))?.scrollIntoView({behavior:'smooth'});
+}));
 </script>
 </body>
 </html>
